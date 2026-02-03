@@ -30,7 +30,14 @@ export declare class StorageService {
      */
     static getMapping(id: string): Promise<SchemaMapping | null>;
     /**
+     * FIX: Normalize a single field mapping entry so that both snake_case
+     * (source_field / target_field) and camelCase (sourceField / targetField)
+     * input keys are accepted and stored consistently as camelCase.
+     */
+    private static normalizeFieldMapping;
+    /**
      * Save a new mapping or update existing one
+     * FIX: Normalize fieldMappings keys before persisting
      */
     static saveMapping(mapping: SchemaMapping): Promise<void>;
     /**
@@ -66,6 +73,8 @@ export declare class StorageService {
     }>;
     /**
      * Validate mapping structure
+     * FIX: Now validates that each fieldMapping entry has sourceField/targetField
+     *      (accepts both snake_case and camelCase variants)
      */
     private static validateMappingStructure;
 }

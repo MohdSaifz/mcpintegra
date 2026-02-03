@@ -93,11 +93,34 @@ export class StorageService {
   }
 
   /**
+   * FIX: Normalize a single field mapping entry so that both snake_case
+   * (source_field / target_field) and camelCase (sourceField / targetField)
+   * input keys are accepted and stored consistently as camelCase.
+   */
+  private static normalizeFieldMapping(fm: any): any {
+    return {
+      sourceField:    fm.sourceField    ?? fm.source_field,
+      targetField:    fm.targetField    ?? fm.target_field,
+      transformation: fm.transformation ?? null,
+      confidence:     fm.confidence     ?? null,
+      required:       fm.required       ?? false,
+      sourceType:     fm.sourceType     ?? fm.source_type     ?? undefined,
+      targetType:     fm.targetType     ?? fm.target_type     ?? undefined,
+    };
+  }
+
+  /**
    * Save a new mapping or update existing one
+   * FIX: Normalize fieldMappings keys before persisting
    */
   static async saveMapping(mapping: SchemaMapping): Promise<void> {
     const mappings = await this.loadMappings();
-    
+
+    // Normalize field mapping keys (snake_case → camelCase)
+    if (Array.isArray(mapping.fieldMappings)) {
+      mapping.fieldMappings = mapping.fieldMappings.map(fm => this.normalizeFieldMapping(fm));
+    }
+
     // Update timestamp
     mapping.updatedAt = new Date().toISOString();
     
@@ -197,7 +220,15 @@ export class StorageService {
             continue;
           }
 
-          mappings[id] = mapping as SchemaMapping;
+          // FIX: Normalize field mappings on import as well
+          const normalizedMapping = mapping as any;
+          if (Array.isArray(normalizedMapping.fieldMappings)) {
+            normalizedMapping.fieldMappings = normalizedMapping.fieldMappings.map(
+              (fm: any) => this.normalizeFieldMapping(fm)
+            );
+          }
+
+          mappings[id] = normalizedMapping as SchemaMapping;
           imported++;
         } catch (error) {
           errors.push(`Failed to import mapping ${id}: ${error instanceof Error ? error.message : String(error)}`);
@@ -215,15 +246,30 @@ export class StorageService {
 
   /**
    * Validate mapping structure
+   * FIX: Now validates that each fieldMapping entry has sourceField/targetField
+   *      (accepts both snake_case and camelCase variants)
    */
   private static validateMappingStructure(mapping: any): boolean {
-    return (
-      mapping &&
-      typeof mapping.id === "string" &&
-      typeof mapping.name === "string" &&
-      mapping.sourceEndpoint &&
-      mapping.targetEndpoint &&
-      Array.isArray(mapping.fieldMappings)
-    );
+    if (
+      !mapping ||
+      typeof mapping.id !== "string" ||
+      typeof mapping.name !== "string" ||
+      !mapping.sourceEndpoint ||
+      !mapping.targetEndpoint ||
+      !Array.isArray(mapping.fieldMappings)
+    ) {
+      return false;
+    }
+
+    // Validate each field mapping has the required keys
+    for (const fm of mapping.fieldMappings) {
+      const sourceField = fm.sourceField ?? fm.source_field;
+      const targetField = fm.targetField ?? fm.target_field;
+      if (!sourceField || !targetField) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }

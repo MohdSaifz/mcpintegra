@@ -16,11 +16,13 @@ export declare class TransformationService {
      */
     private static applyFormatTransformation;
     /**
-     * Get nested value from object using path (e.g., "user.address.city")
+     * Get nested value from object using dot-notation path (e.g., "user.address.city")
+     * FIX: Added guard for undefined/empty path
      */
     private static getNestedValue;
     /**
-     * Set nested value in object using path
+     * Set nested value in object using dot-notation path
+     * FIX: Added guard for undefined/empty path
      */
     private static setNestedValue;
     /**

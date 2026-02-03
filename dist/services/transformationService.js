@@ -21,6 +21,15 @@ export class TransformationService {
         // Apply each field mapping
         for (const fieldMapping of mapping.fieldMappings) {
             try {
+                // FIX: Validate that sourceField and targetField are defined before proceeding
+                if (!fieldMapping.sourceField || !fieldMapping.targetField) {
+                    errors.push({
+                        field: fieldMapping.sourceField ?? "undefined",
+                        error: `Invalid field mapping: sourceField='${fieldMapping.sourceField}', targetField='${fieldMapping.targetField}'. ` +
+                            `Check that the mapping was saved with valid field names.`
+                    });
+                    continue;
+                }
                 const value = this.getNestedValue(sourcePayload, fieldMapping.sourceField);
                 // Check if required field is missing
                 if (fieldMapping.required && (value === undefined || value === null)) {
@@ -54,9 +63,9 @@ export class TransformationService {
             }
             catch (error) {
                 errors.push({
-                    field: fieldMapping.sourceField,
+                    field: fieldMapping.sourceField ?? "undefined",
                     error: `Failed to transform field: ${error instanceof Error ? error.message : String(error)}`,
-                    originalValue: this.getNestedValue(sourcePayload, fieldMapping.sourceField)
+                    originalValue: fieldMapping.sourceField ? this.getNestedValue(sourcePayload, fieldMapping.sourceField) : undefined
                 });
             }
         }
@@ -162,9 +171,13 @@ export class TransformationService {
         return value;
     }
     /**
-     * Get nested value from object using path (e.g., "user.address.city")
+     * Get nested value from object using dot-notation path (e.g., "user.address.city")
+     * FIX: Added guard for undefined/empty path
      */
     static getNestedValue(obj, path) {
+        if (!path) {
+            throw new Error("Field path is undefined or empty");
+        }
         const parts = path.split(".");
         let current = obj;
         for (const part of parts) {
@@ -176,9 +189,13 @@ export class TransformationService {
         return current;
     }
     /**
-     * Set nested value in object using path
+     * Set nested value in object using dot-notation path
+     * FIX: Added guard for undefined/empty path
      */
     static setNestedValue(obj, path, value) {
+        if (!path) {
+            throw new Error("Field path is undefined or empty");
+        }
         const parts = path.split(".");
         let current = obj;
         for (let i = 0; i < parts.length - 1; i++) {
@@ -262,7 +279,9 @@ export class TransformationService {
                 default:
                     exampleValue = null;
             }
-            this.setNestedValue(example, fieldMapping.sourceField, exampleValue);
+            if (fieldMapping.sourceField) {
+                this.setNestedValue(example, fieldMapping.sourceField, exampleValue);
+            }
         }
         return example;
     }

@@ -86,10 +86,31 @@ export class StorageService {
         return mappings[id] || null;
     }
     /**
+     * FIX: Normalize a single field mapping entry so that both snake_case
+     * (source_field / target_field) and camelCase (sourceField / targetField)
+     * input keys are accepted and stored consistently as camelCase.
+     */
+    static normalizeFieldMapping(fm) {
+        return {
+            sourceField: fm.sourceField ?? fm.source_field,
+            targetField: fm.targetField ?? fm.target_field,
+            transformation: fm.transformation ?? null,
+            confidence: fm.confidence ?? null,
+            required: fm.required ?? false,
+            sourceType: fm.sourceType ?? fm.source_type ?? undefined,
+            targetType: fm.targetType ?? fm.target_type ?? undefined,
+        };
+    }
+    /**
      * Save a new mapping or update existing one
+     * FIX: Normalize fieldMappings keys before persisting
      */
     static async saveMapping(mapping) {
         const mappings = await this.loadMappings();
+        // Normalize field mapping keys (snake_case → camelCase)
+        if (Array.isArray(mapping.fieldMappings)) {
+            mapping.fieldMappings = mapping.fieldMappings.map(fm => this.normalizeFieldMapping(fm));
+        }
         // Update timestamp
         mapping.updatedAt = new Date().toISOString();
         if (!mapping.createdAt) {
@@ -168,7 +189,12 @@ export class StorageService {
                         errors.push(`Invalid mapping structure for ID: ${id}`);
                         continue;
                     }
-                    mappings[id] = mapping;
+                    // FIX: Normalize field mappings on import as well
+                    const normalizedMapping = mapping;
+                    if (Array.isArray(normalizedMapping.fieldMappings)) {
+                        normalizedMapping.fieldMappings = normalizedMapping.fieldMappings.map((fm) => this.normalizeFieldMapping(fm));
+                    }
+                    mappings[id] = normalizedMapping;
                     imported++;
                 }
                 catch (error) {
@@ -185,14 +211,27 @@ export class StorageService {
     }
     /**
      * Validate mapping structure
+     * FIX: Now validates that each fieldMapping entry has sourceField/targetField
+     *      (accepts both snake_case and camelCase variants)
      */
     static validateMappingStructure(mapping) {
-        return (mapping &&
-            typeof mapping.id === "string" &&
-            typeof mapping.name === "string" &&
-            mapping.sourceEndpoint &&
-            mapping.targetEndpoint &&
-            Array.isArray(mapping.fieldMappings));
+        if (!mapping ||
+            typeof mapping.id !== "string" ||
+            typeof mapping.name !== "string" ||
+            !mapping.sourceEndpoint ||
+            !mapping.targetEndpoint ||
+            !Array.isArray(mapping.fieldMappings)) {
+            return false;
+        }
+        // Validate each field mapping has the required keys
+        for (const fm of mapping.fieldMappings) {
+            const sourceField = fm.sourceField ?? fm.source_field;
+            const targetField = fm.targetField ?? fm.target_field;
+            if (!sourceField || !targetField) {
+                return false;
+            }
+        }
+        return true;
     }
 }
 //# sourceMappingURL=storageService.js.map
